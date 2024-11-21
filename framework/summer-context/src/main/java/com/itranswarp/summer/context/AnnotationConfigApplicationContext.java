@@ -245,9 +245,49 @@ public class AnnotationConfigApplicationContext implements ConfigurableApplicati
         return def.getInstance();
     }
 
-    /**
-     * 根据扫描的ClassName创建BeanDefinition
-     */
+
+
+//Class的isRecord为高版本用法，这里手动实现isRecord
+
+    public static boolean isRecord(Class<?> clazz) {
+        // 判断类是否声明了 final 字段并且至少有一个构造方法
+        Field[] fields = clazz.getDeclaredFields();
+
+        // 检查是否所有字段都是 `final`
+        boolean allFieldsFinal = true;
+        for
+        (Field field : fields) {
+            if
+            (!Modifier.isFinal(field.getModifiers())) {
+                allFieldsFinal =
+                        false
+                ;
+                break
+                        ;
+            }
+        }
+
+        // 记录类有一个特殊的构造器（带有所有字段作为参数的构造器）
+        Constructor<?>[] constructors = clazz.getDeclaredConstructors();
+        boolean hasConstructorWithFields = false;
+        for
+        (Constructor<?> constructor : constructors) {
+            if
+            (constructor.getParameterCount() == fields.length) {
+                hasConstructorWithFields =
+                        true
+                ;
+                break
+                        ;
+            }
+        }
+        // 判断是否有 final 字段并且有符合要求的构造器
+        return
+                allFieldsFinal && hasConstructorWithFields;
+    }
+        /**
+         * 根据扫描的ClassName创建BeanDefinition
+         */
     Map<String, BeanDefinition> createBeanDefinitions(Set<String> classNameSet) {
         Map<String, BeanDefinition> defs = new HashMap<>();
         for (String className : classNameSet) {
@@ -258,7 +298,7 @@ public class AnnotationConfigApplicationContext implements ConfigurableApplicati
             } catch (ClassNotFoundException e) {
                 throw new BeanCreationException(e);
             }
-            if (clazz.isAnnotation() || clazz.isEnum() || clazz.isInterface() || clazz.isRecord()) {
+            if (clazz.isAnnotation() || clazz.isEnum() || clazz.isInterface() || isRecord(clazz)) {
                 continue;
             }
             // 是否标注@Component?
@@ -331,8 +371,9 @@ public class AnnotationConfigApplicationContext implements ConfigurableApplicati
     }
 
     /**
-     * 注入属性
+     * 注入属性,clazz是被注入对象的反射
      */
+
     void injectProperties(BeanDefinition def, Class<?> clazz, Object bean) throws ReflectiveOperationException {
         // 在当前类查找Field和Method并注入:
         for (Field f : clazz.getDeclaredFields()) {
@@ -360,10 +401,12 @@ public class AnnotationConfigApplicationContext implements ConfigurableApplicati
 
         Field field = null;
         Method method = null;
-        if (acc instanceof Field f) {
+        //判断传入的值是否是一个属性，如果是属性就做一下校验，并且撬开私有属性。根据廖老师评论区修改
+        if (acc instanceof Field) {
+            Field f=(Field) acc;
             checkFieldOrMethod(f);
-            f.setAccessible(true);
-            field = f;
+              f.setAccessible(true);
+              field = f;
         }
         if (acc instanceof Method m) {
             checkFieldOrMethod(m);
@@ -686,15 +729,36 @@ public class AnnotationConfigApplicationContext implements ConfigurableApplicati
     @SuppressWarnings("unchecked")
     public <T> List<T> getBeans(Class<T> requiredType) {
         List<BeanDefinition> defs = findBeanDefinitions(requiredType);
+
+        // 如果没有找到符合条件的Bean，返回一个空的 ArrayList
         if (defs.isEmpty()) {
-            return List.of();
+            return new ArrayList<>();  // 这里使用 ArrayList() 来返回一个空列表
+            //取代了list.of返回空列表
         }
+
         List<T> list = new ArrayList<>(defs.size());
+
+        // 遍历 BeanDefinition 列表并将实例转换为目标类型 T
         for (var def : defs) {
-            list.add((T) def.getRequiredInstance());
+            list.add((T) def.getRequiredInstance()); // 强制转换类型
         }
+
         return list;
     }
+
+
+
+//    public <T> List<T> getBeans(Class<T> requiredType) {
+//        List<BeanDefinition> defs = findBeanDefinitions(requiredType);
+//        if (defs.isEmpty()) {
+//            return List.of();
+//        }
+//        List<T> list = new ArrayList<>(defs.size());
+//        for (var def : defs) {
+//            list.add((T) def.getRequiredInstance());
+//        }
+//        return list;
+//    }
 
     /**
      * 通过Type查找Bean，不存在抛出NoSuchBeanDefinitionException，存在多个但缺少唯一@Primary标注抛出NoUniqueBeanDefinitionException
@@ -757,6 +821,8 @@ public class AnnotationConfigApplicationContext implements ConfigurableApplicati
         ApplicationContextUtils.setApplicationContext(null);
     }
 
+
+    //拿回原始Bean的方法
     private Object getProxiedInstance(BeanDefinition def) {
         Object beanInstance = def.getInstance();
         // 如果Proxy改变了原始Bean，又希望注入到原始Bean，则由BeanPostProcessor指定原始Bean:

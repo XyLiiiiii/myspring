@@ -256,7 +256,14 @@ public class DispatcherServlet extends HttpServlet {
                 }
                 resp.setContentType(mime);
                 ServletOutputStream output = resp.getOutputStream();
-                input.transferTo(output);
+               // input.transferTo(output);
+                byte[] buffer = new byte[8192]; // 8k buffer size
+                int
+                        bytesRead;
+                while ((bytesRead = input.read(buffer)) != -1
+                ) {
+                    output.write(buffer, 0, bytesRead);
+                }
                 output.flush();
             }
         }

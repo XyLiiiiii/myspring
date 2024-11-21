@@ -1,7 +1,7 @@
 package com.itranswarp.summer.context;
 
 import java.util.List;
-
+//停留在ioc容器管理，寻找bean并放回ioc
 public interface ApplicationContext extends AutoCloseable {
 
     /**
